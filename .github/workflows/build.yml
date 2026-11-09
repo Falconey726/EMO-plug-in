@@ -32,6 +32,16 @@ jobs:
       - name: Test
         run: ctest --test-dir build -C Release --output-on-failure
 
+      - name: Ad-hoc sign macOS bundles
+        if: runner.os == 'macOS'
+        working-directory: build/EmotionMorph_artefacts/Release
+        run: |
+          # Without a valid signature, Apple Silicon Macs report the plugin as "damaged".
+          for b in "AU/Emotion Morph.component" "VST3/Emotion Morph.vst3" "Standalone/Emotion Morph.app"; do
+            codesign --force --deep --sign - "$b"
+            codesign --verify --deep --strict --verbose=2 "$b"
+          done
+
       - name: Package macOS plugins
         if: runner.os == 'macOS'
         run: |
