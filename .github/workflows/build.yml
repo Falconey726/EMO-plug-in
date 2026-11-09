@@ -31,3 +31,21 @@ jobs:
 
       - name: Test
         run: ctest --test-dir build -C Release --output-on-failure
+
+      - name: Package macOS plugins
+        if: runner.os == 'macOS'
+        run: |
+          mkdir -p dist
+          cd build/EmotionMorph_artefacts/Release
+          # ditto keeps bundle structure, symlinks and signatures intact
+          ditto -c -k --keepParent "AU/Emotion Morph.component" "$GITHUB_WORKSPACE/dist/Emotion-Morph-AU.zip"
+          ditto -c -k --keepParent "VST3/Emotion Morph.vst3" "$GITHUB_WORKSPACE/dist/Emotion-Morph-VST3.zip"
+          ditto -c -k --keepParent "Standalone/Emotion Morph.app" "$GITHUB_WORKSPACE/dist/Emotion-Morph-Standalone.zip"
+
+      - name: Upload macOS plugins
+        if: runner.os == 'macOS'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Emotion-Morph-macOS
+          path: dist/*.zip
+          retention-days: 30
