@@ -1,0 +1,61 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libasound2-dev libx11-dev libxrandr-dev libxinerama-dev \
+            libxcursor-dev libxext-dev libfreetype-dev libfontconfig1-dev
+
+      - name: Configure
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      - name: Test
+        run: ctest --test-dir build -C Release --output-on-failure
+
+      - name: Ad-hoc sign macOS bundles
+        if: runner.os == 'macOS'
+        working-directory: build/EmotionMorph_artefacts/Release
+        run: |
+          # Without a valid signature, Apple Silicon Macs report the plugin as "damaged".
+          for b in "AU/Emotion Morph.component" "VST3/Emotion Morph.vst3" "Standalone/Emotion Morph.app"; do
+            codesign --force --deep --sign - "$b"
+            codesign --verify --deep --strict --verbose=2 "$b"
+          done
+
+      - name: Package macOS plugins
+        if: runner.os == 'macOS'
+        run: |
+          mkdir -p dist
+          cd build/EmotionMorph_artefacts/Release
+          # ditto keeps bundle structure, symlinks and signatures intact
+          ditto -c -k --keepParent "AU/Emotion Morph.component" "$GITHUB_WORKSPACE/dist/Emotion-Morph-AU.zip"
+          ditto -c -k --keepParent "VST3/Emotion Morph.vst3" "$GITHUB_WORKSPACE/dist/Emotion-Morph-VST3.zip"
+          ditto -c -k --keepParent "Standalone/Emotion Morph.app" "$GITHUB_WORKSPACE/dist/Emotion-Morph-Standalone.zip"
+
+      - name: Upload macOS plugins
+        if: runner.os == 'macOS'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Emotion-Morph-macOS
+          path: dist/*.zip
+          retention-days: 30
